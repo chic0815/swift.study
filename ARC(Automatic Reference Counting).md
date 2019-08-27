@@ -210,3 +210,27 @@ unit4A = nil
 In systems that use garbage collection, weak pointers are sometimes used to implement a simple caching mechanism because objects with no strong references are deallocated only when memory pressure triggers garbage collection. However, with ARC, values are deallocated as soon as their last strong reference is removed, making weak references unsuitable for such a purpose.
 
 
+```Swift
+class Customer {
+    var user: String
+    var card: CreditCard?
+
+    init(user: String) {
+        self.user = user
+    }
+
+    deinit() {
+       print("\(user) has been deinitialized")
+    }
+}
+
+class CreditCard {
+    let card: Int64
+    unowned let customer: Customer
+    
+    init(card: Int64, customer: Customer) {
+        self.card = card
+        self.customer = customer
+    }
+}
+```
