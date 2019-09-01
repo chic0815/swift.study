@@ -209,28 +209,129 @@ unit4A = nil
 > **NOTE**
 In systems that use garbage collection, weak pointers are sometimes used to implement a simple caching mechanism because objects with no strong references are deallocated only when memory pressure triggers garbage collection. However, with ARC, values are deallocated as soon as their last strong reference is removed, making weak references unsuitable for such a purpose.
 
+---
+
+## Unowned References
+
+Unowned reference doesn't keep a strong hold on the instance it referes to.
+**Unlike** a week reference an unowned reference is used when the other instance has the same lifetime or a longer lifetime.
+
+Unowned references always have a **value**, so ARC never sets its value to `nil` (non-optional types)
+
+
+> **Important:** Use an unowned reference only when you sure that the reference **always** refers to an instance that has **never been deallocated**
 
 ```Swift
 class Customer {
-    var user: String
-    var card: CreditCard?
-
-    init(user: String) {
-        self.user = user
-    }
-
-    deinit() {
-       print("\(user) has been deinitialized")
-    }
+	let name: String
+	var card: CreditCard?
+	init(name: String) {
+		self.name = name
+	}
+	deinit { print("\(name) is being deinitialized") }
 }
 
 class CreditCard {
-    let card: Int64
-    unowned let customer: Customer
+	let number: UInt64
+	unowned let customer: Customer
+	init(number: UInt64, customer: Customer) {
+		self.number = number
+		self.custimer = customer
+	}
+	deinit { print("Card #\(number) is being deinitialized") }
+```
+
+> Note:
+> `CreditCard.number` is defined with a type of `UInt64` rather than `Int` to ensure that the `number` capacity is large enough to store a 16-digit card # on both 32bit & 64bit systems.
+
+```Swift
+var john: Customer?     // john = nil
+
+john = Customer(name: "John Appleseed")
+john!.card = CreditCard(number: 1234_5678_9012_3456, customer: john!)
+```
+
+| john | |  |
+| ----- | ----- | ----- |
+| Strong | |  |
+| <**Customer** instance> | | <**CreditCard** instance> |
+| **name**: "John Appleseed" | -- Strong --> | **number**: 1234_5678_9012_3456 |
+| **card**: <CreaditCard instance> | <-- unowned -- | **customer**: <Customer instance> |
+
+```Swift
+john = nil
+// "John Appleseed is being deinitialized"
+// "Card #1234567890123456 is being deinitialized"
+```
+
+Because there are no more strong references to the Customer instance, it's deallocated. After then, there are **no more strong references to the CreditCard instance**, and it's deallocated too.
+
+> `unowned(unsafe)`:
+If you try to access an unsafe unowned reference after the instance that it refers to is deallocated, your porgram will try to access the memory location where the instance used to be, which is an unsafe opeeration.
+
+---
+## Unowned References and Implicitly Unwrapped Optional Properties
+
+`Person` & `Apartment` shows a situation where two properties have the potential to cuase a strong reference cycle: both allowed to be 'nil'
+
+`Customer` & `CreditCard` shows a situation where two properties have the potential to cuase a strong reference cycle: one property allowed to be `nil` and another property *never*
+
+Third Scenario:
+Both properties should always have a value and never be `nil` once initailization is complete.
+Solution: It is useful to combine an `unwoned` property on one class with an `!` property on the other class.
+Both properties enble to be accessed directly once initialization is complete, while still avoiding the cycle.
+
+**Interdependency**
+```Swift
+class Country {
+    let name: String
+    var capitalCity: City!
+    init(name: String, capitalName: String) {
+        self.name = name
+        self.capitalCity = City(name: capitalName, country: self)
+    }
+}
+
+class City {
+    let name: String
+    unowned let country: Country
     
-    init(card: Int64, customer: Customer) {
-        self.card = card
-        self.customer = customer
+    init(name: String, country: Country) {
+        self.name = name
+        self.country = country
     }
 }
 ```
+
+To set up the interdependency between the 2 classes
+- the initializer for `City` takes a `Country` instance
+`City.init(country: Country)`
+- stores the `Country` instance in its `Country` property
+`self.country = country`
+
+`City.init()` is called from within `Country.init()`
+However, `Country.init()` can't pass `self` to the `City.init()` until a new `Country` instance is fully initialized.
+`Country.init()` --> `City(country: self)`
+
+Related Link >> [Two-Phase Initialization]("https://docs.swift.org/swift-book/LanguageGuide/Initialization.html#ID220")
+
+Declare the  `Country.capitalCity: City!`. This means that the `capitalCity = nil` as a default like other optional, but can be accessed without the need to unwrap its value.
+
+Because `capitalCity = nil`, a new `Country` instance is considered fully initialized as soon as the `Country` instance sets its `name` property within its initializer.
+(`newCountry = Country(name: "new", capitalCity: "cap")`)
+- This means that `Country.init()` can start to reference 
+- Then, pass around the implicit `self` as soon as `name` is set
+- Therfore `Country.init()` can pass `self` as one of the parameters for `City.init()` when `Country.init(capitalCity: )` is setting its own `capitalCity`
+
+** You can create the `Country` and `City` instances in a single statement** without creating a strong reference cycle.
+`capitalCity` can be accessed directly without needing to user `!`mark to unwrap its optional value:
+
+```Swift
+var country = Country(name: "Canada", capitalName: "Ottawa")
+print("\(country.name)'s capital city is called \(country.capitalCity.name)")
+// Prints "Canada's capital City is called Ottawa"
+```
+
+
+
+
