@@ -23,11 +23,11 @@
 ---
 ### How to Delete?
 
->> `nano Podfile`
+> `nano Podfile`
 
     #Platform: ios, '9.0'
     target (~~) do
     	pod 'SendBirdSDK'
     end
 
->> `pod install`
+> `pod install`
